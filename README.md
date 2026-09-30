@@ -11,7 +11,11 @@ file-filter normalization, the MCP process, the initialization handshake, and th
 forwarded tool arguments. Calls do not change the host process cwd or cache a
 session's project globally.
 
-The package name and tool names remain unchanged for existing tool selectors.
+The package name and tool names remain unchanged. Git and npm installations have
+different resource-source identities: hosts that scope subagent tools by package
+source must update their allowlist. In Pi Web, `ext:codegraph` selects the extension
+by its stable filename when that name is unique among loaded extensions; verify
+it selects exactly the eight CodeGraph tools rather than granting `ext:*`.
 This fork is installed from Git, not published under the upstream npm name.
 Replace an existing upstream installation instead of loading both copies:
 
