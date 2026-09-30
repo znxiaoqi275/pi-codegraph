@@ -9,7 +9,7 @@ import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const OptionalProjectPath = Type.Optional(Type.String({
-  description: "Path to a different project with .codegraph/ initialized. Defaults to current project.",
+  description: "Path to a different project with .codegraph/ initialized. Defaults to the current Pi session working directory.",
 }));
 
 const ToolKind = Type.Optional(Type.Union([
@@ -214,7 +214,7 @@ export function normalizeWindowsPath(inputPath: string): string {
 }
 
 export async function resolveProjectCwd(projectPath: string | undefined): Promise<string> {
-  const cwd = normalizeWindowsPath(projectPath || process.cwd());
+  const cwd = normalizeWindowsPath(projectPath ?? process.cwd());
 
   if (!path.isAbsolute(cwd)) {
     throw new Error("CodeGraph projectPath must be an absolute path.");
@@ -414,14 +414,13 @@ async function initializeJsonRpcSession(
   sendNotification("initialized", {});
 }
 
-async function prepareToolArguments(
+function prepareToolArguments(
   name: ToolName,
   params: ToolParams,
-): Promise<{ args: ToolParams; originalFilesPath?: string }> {
+  projectCwd: string,
+): { args: ToolParams; originalFilesPath?: string } {
   if (name !== "codegraph_files") return { args: params };
 
-  const projectPath = typeof params.projectPath === "string" ? params.projectPath : undefined;
-  const projectCwd = await resolveProjectCwd(projectPath);
   const originalFilesPath = typeof params.path === "string" ? params.path : undefined;
   const normalizedPath = normalizeFilesPath(originalFilesPath, projectCwd);
 
@@ -440,10 +439,15 @@ export async function callCodeGraphTool(
   params: ToolParams,
   signal?: AbortSignal,
 ): Promise<string> {
-  const { args, originalFilesPath } = await prepareToolArguments(name, params);
+  const projectCwd = await resolveProjectCwd(params.projectPath);
+  const { args, originalFilesPath } = prepareToolArguments(
+    name,
+    { ...params, projectPath: projectCwd },
+    projectCwd,
+  );
 
   const result = await withCodeGraphMcp(
-    typeof args.projectPath === "string" ? args.projectPath : undefined,
+    projectCwd,
     signal,
     (request) =>
       request("tools/call", {
@@ -487,8 +491,9 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
         `${tool.name} is available for structural code questions backed by the local CodeGraph index.`,
       ],
       parameters: tool.parameters,
-      async execute(_toolCallId, params: Static<typeof tool.parameters>, signal) {
-        const text = await callCodeGraphTool(tool.name, (params || {}) as ToolParams, signal);
+      async execute(_toolCallId, params: Static<typeof tool.parameters>, signal, _onUpdate, ctx) {
+        const args: ToolParams = { ...params, projectPath: params?.projectPath ?? ctx.cwd };
+        const text = await callCodeGraphTool(tool.name, args, signal);
         return {
           content: [{ type: "text" as const, text }],
           details: {},

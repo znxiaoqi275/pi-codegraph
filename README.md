@@ -1,6 +1,34 @@
 # pi-codegraph
 ### CodeGraph tools for pi
 
+## Session-cwd fix in this fork
+
+This fork fixes project selection when Pi's session working directory differs from
+its host process directory (for example, an SDK host or a subagent). Native tool
+calls default to the **current execution context's `ctx.cwd`**. An explicit
+`projectPath` overrides that directory. The selected, validated path is used for
+file-filter normalization, the MCP process, the initialization handshake, and the
+forwarded tool arguments. Calls do not change the host process cwd or cache a
+session's project globally.
+
+The package name and tool names remain unchanged for existing tool selectors.
+This fork is installed from Git, not published under the upstream npm name.
+Replace an existing upstream installation instead of loading both copies:
+
+```bash
+pi remove npm:@vndv/pi-codegraph
+pi install git:github.com/znxiaoqi275/pi-codegraph@fix/session-project-cwd
+```
+
+For a reproducible deployment, replace the branch ref with the tested commit SHA.
+Then reload or restart Pi. To roll back, remove the exact Git source shown by
+`pi list`, install `npm:@vndv/pi-codegraph@0.1.10`, and reload or restart.
+
+Projects still need an existing `.codegraph` index; the fix does **not** run
+`codegraph init` automatically. Standalone exported helpers, which receive no Pi
+execution context, retain their process-cwd default. The upstream documentation
+below describes upstream installation and usage.
+
 [![Skylos Grade](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/vndv/pi-codegraph/main/.github/badges/skylos.json)](https://github.com/duriantaco/skylos)
 [![npm downloads](https://img.shields.io/npm/dm/%40vndv%2Fpi-codegraph)](https://www.npmjs.com/package/@vndv/pi-codegraph)
 
@@ -111,7 +139,15 @@ cd /path/to/project
 pi
 ```
 
-### 2. Ask structural questions
+### 2. Project selection in native tools
+
+Omit `projectPath` to use the current Pi session's working directory, including
+subagent/worktree sessions. Supply an absolute `projectPath` to query a different
+indexed project. Invalid explicit paths fail rather than falling back to another
+project. The host application's `process.cwd()` does not select the native tool's
+default project.
+
+### 3. Ask structural questions
 
 Good prompts:
 
@@ -122,7 +158,7 @@ Use CodeGraph. What would break if I change UserRepository?
 Use CodeGraph. Show files under internal/services and important symbols.
 ```
 
-### 3. Prefer the right tool
+### 4. Prefer the right tool
 
 Use `codegraph_explore` for broad "how does this work?" or "how does X reach Y?" questions.
 
